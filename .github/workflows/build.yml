@@ -1,0 +1,70 @@
+name: Build HEX-AI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:   # déclenchement manuel depuis l'onglet Actions
+
+permissions:
+  contents: write      # nécessaire uniquement pour créer la Release
+
+jobs:
+  backend-tests:
+    name: Tests du backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+
+  android:
+    name: APK Debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Gradle 8.7 = version minimale requise par AGP 8.5.x (pas de gradle-wrapper.jar dans le dépôt)
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Compiler l'APK Debug
+        # HEX_API_URL = adresse PUBLIQUE de ton backend (variable Actions, pas un secret).
+        # Aucune clé OpenRouter n'est jamais donnée à ce job.
+        env:
+          HEX_API_URL: ${{ vars.HEX_API_URL }}
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Vérifier que l'APK existe
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK" || { echo "APK introuvable"; exit 1; }
+          cp "$APK" HEX-AI-debug.apk
+          ls -lh HEX-AI-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HEX-AI-debug-apk
+          path: HEX-AI-debug.apk
+          if-no-files-found: error
+
+      - name: Créer la Release GitHub
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: HEX-AI v1.0.${{ github.run_number }} (debug)
+          files: HEX-AI-debug.apk
+          generate_release_notes: true
