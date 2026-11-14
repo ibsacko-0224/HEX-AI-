@@ -1,0 +1,30 @@
+name: Extraire HEX-AI.zip
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Décompresser HEX-AI.zip à la racine du dépôt
+        run: |
+          test -f HEX-AI.zip || { echo "HEX-AI.zip introuvable à la racine"; exit 1; }
+          unzip -q -o HEX-AI.zip -d /tmp/extract
+          test -d /tmp/extract/HEX-AI || { echo "Dossier HEX-AI absent du zip"; exit 1; }
+          cp -a /tmp/extract/HEX-AI/. .
+          rm -f HEX-AI.zip
+          ls -la
+
+      - name: Enregistrer les fichiers dans le dépôt
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Extraire HEX-AI.zip" || echo "Rien à enregistrer"
+          git push
